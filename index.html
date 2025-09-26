@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sabah Roads Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <div id="map" style="width: 100%; height: 100vh;"></div>
+  <style>
+    /* Custom CSS for the button */
+    .locate-button {
+      background: white;
+      border: 2px solid #666;
+      border-radius: 4px;
+      padding: 10px;
+      cursor: pointer;
+    }
+    .locate-button:hover {
+      background: #9bc9ff;
+    }
+
+    /* Pulse animation for "You are here" marker */
+    .pulse {
+      width: 20px;
+      height: 20px;
+      background: rgba(0, 123, 255, 0.6);
+      border: 3px solid #007bff;
+      border-radius: 50%;
+      animation: pulse-animation 2s infinite;
+    }
+
+    .district-label {
+      font-size: 18px;        /* make it bigger */
+      font-weight: bold;      /* bold text */
+      color: rgb(255, 255, 255);         /* text color */
+      font-family: Arial, sans-serif; /* change font */
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+
+    @keyframes pulse-animation {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.5; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+
+  <script>
+    // 1. Define basemaps (L stands for leaflet)
+     var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri'
+    });
+
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    });
+
+   
+
+    // 2. Initialize map with default layer
+    var map = L.map('map', {
+      center: [5.0, 117.5], // Sabah
+      zoom: 8.3,
+      layers: [osm] // default base layer
+    });
+
+    var userMarker = null;
+
+    // 3. Load GeoJSON (roads)
+    fetch('sabah_main_roads.geojson')
+      .then(response => response.json())
+      .then(data => {
+        var roadsLayer = L.geoJSON(data, {
+          onEachFeature: function(feature, layer) {
+            if (feature.properties.name) {
+              layer.bindTooltip(feature.properties.name, {permanent: false, direction: 'top'});
+            }
+          },
+          style: function(feature) {
+            switch(feature.properties.fclass) {
+              case 'motorway': return {color: 'green', weight: 3};
+              case 'primary': return {color: 'blue', weight: 2};
+              case 'secondary': return {color: 'red', weight: 2};
+              default: return {color: 'blue', weight: 1};
+            }
+          }
+        }).addTo(map);
+
+    // 3.1 Load GeoJSON (Sabah district)
+      fetch('sabah_district.geojson')
+        .then(response => response.json())
+        .then(data => {
+          L.geoJSON(data, {
+            style: function(feature) {
+              return {
+                color: "black",   // border color
+                weight: 1,        // border thickness
+                fillOpacity: 0    // no fill color
+              };
+            },
+
+      //district names
+            onEachFeature: function(feature, layer) {
+              layer.bindTooltip(feature.properties.NAME_2,{
+                permanent:true,
+                direction:'center',
+                className: 'district-label'
+              });
+              }
+
+          }).addTo(map);
+        });
+
+
+        // Add layer control
+        var baseMaps = {
+          "Satellite": esriSat,
+          "OpenStreetMap": osm
+        };
+
+        var overlayMaps = {
+          "Roads": roadsLayer //here can be enhance if have other roads or want different road different layer
+        };
+
+        L.control.layers(baseMaps, overlayMaps).addTo(map);
+      });
+
+    // 4. Add "You are here" functionality
+   var locateControl = L.control({position: 'topleft'});
+    locateControl.onAdd = function(map) {
+      var div = L.DomUtil.create('div', 'locate-button');
+      div.innerHTML = '📍';
+      div.onclick = function(){
+        map.locate({setView: true, maxZoom: 70});
+      }
+      return div;
+    };
+    locateControl.addTo(map);
+
+    // When location is found
+    map.on('locationfound', function(e) {
+      if (userMarker) {
+        map.removeLayer(userMarker);
+      }
+      userMarker = L.marker(e.latlng, {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="pulse"></div>',
+          iconSize: [30, 30]
+        })
+      }).addTo(map).bindPopup("You are here!").openPopup();
+    });
+
+    // Error handling
+    map.on('locationerror', function(e) {
+      alert("Location error: " + e.message);
+    });
+  </script>
+</body>
+</html>
