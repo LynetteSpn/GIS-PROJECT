@@ -1,0 +1,21 @@
+/* Base styles for the map container */
+#map {
+    width: 100%;
+    height: 1000px;
+}
+
+/* Style and positioning for the basemap dropdown selector */
+#basemap-selector {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000; /* Ensure it is above the map tiles */
+    padding: 5px;
+}
+
+/* Custom CSS class to position the Geolocation (Locate Me) button */
+.ol-locate-me {
+    /* Adjust 'top' to fit below the default OpenLayers controls (Zoom/ZoomSlider/FullScreen) */
+    top: 5px; 
+    left: 50px; 
+}
