@@ -37,12 +37,12 @@
     }
 
     .district-label {
-      font-size: 18px;        /* make it bigger */
-      font-weight: bold;      /* bold text */
-      color: rgb(255, 255, 255);         /* text color */
-      font-family: Arial, sans-serif; /* change font */
-      background: transparent;
+      font-size: 15px;        /* make it bigger */
+      color: rgb(0, 0, 0);         /* text color */
+      font-family: 'Times New Roman', Times, serif; /* change font */
+      background: white ;
       border: none;
+      padding: 2px 2px;
       box-shadow: none;
     }
 
@@ -55,115 +55,156 @@
   </style>
 
   <script>
-    // 1. Define basemaps (L stands for leaflet)
-     var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles © Esri'
-    });
+  // 1. Define basemaps
+  let esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri'
+  });
 
-    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    });
+  let osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    opacity: 0.6
+  });
 
-   
+  // 2. Initialize map with default layer
+  var map = L.map('map', {
+    center: [5.0, 117.5], // Sabah
+    zoom: 8.3,
+    layers: [osm] // default base layer
+  });
 
-    // 2. Initialize map with default layer
-    var map = L.map('map', {
-      center: [5.0, 117.5], // Sabah
-      zoom: 8.3,
-      layers: [osm] // default base layer
-    });
+  var userMarker = null;
+  var districtLayer; // store reference to districts
 
-    var userMarker = null;
-
-    // 3. Load GeoJSON (roads)
-    fetch('sabah_main_roads.geojson')
-      .then(response => response.json())
-      .then(data => {
-        var roadsLayer = L.geoJSON(data, {
-          onEachFeature: function(feature, layer) {
-            if (feature.properties.name) {
-              layer.bindTooltip(feature.properties.name, {permanent: false, direction: 'top'});
-            }
-          },
-          style: function(feature) {
-            switch(feature.properties.fclass) {
-              case 'motorway': return {color: 'green', weight: 3};
-              case 'primary': return {color: 'blue', weight: 2};
-              case 'secondary': return {color: 'red', weight: 2};
-              default: return {color: 'blue', weight: 1};
-            }
+  // 3. Load GeoJSON (roads)
+  fetch('sabah_main_roads.geojson')
+    .then(response => response.json())
+    .then(data => {
+      var roadsLayer = L.geoJSON(data, {
+        onEachFeature: function(feature, layer) {
+          if (feature.properties.name) {
+            layer.bindTooltip(feature.properties.name, {permanent: false, direction: 'top'});
           }
-        }).addTo(map);
+        },
+        style: function(feature) {
+          switch(feature.properties.fclass) {
+            case 'motorway': return {color: 'green', weight: 3};
+            case 'primary': return {color: 'blue', weight: 2};
+            case 'secondary': return {color: 'red', weight: 2};
+            default: return {color: 'blue', weight: 1};
+          }
+        }
+      }).addTo(map);
 
-    // 3.1 Load GeoJSON (Sabah district)
+      // 3.1 Load GeoJSON (Sabah district)
       fetch('sabah_district.geojson')
         .then(response => response.json())
         .then(data => {
-          L.geoJSON(data, {
-            style: function(feature) {
-              return {
-                color: "black",   // border color
-                weight: 1,        // border thickness
-                fillOpacity: 0    // no fill color
-              };
-            },
+          const colors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6'];
 
-      //district names
+          // normal OSM style
+          function styleOSM(feature) {
+            const name = feature.properties.NAME_2;
+            const index = data.features.findIndex(f => f.properties.NAME_2 == name) % colors.length;
+            return {
+              color: colors[index],
+              weight: 0,
+              fillOpacity: 0.5
+            };
+          }
+
+          // satellite style
+          function styleSatellite(feature) {
+            return {
+              color: "#ffffff",    // white outline
+              weight: 1.5,
+              fillColor: "#000000",
+              fillOpacity: 0.15   // very light, so satellite shows through
+            };
+          }
+
+          // create layer
+          districtLayer = L.geoJSON(data, {
+            style: styleOSM,
             onEachFeature: function(feature, layer) {
-              layer.bindTooltip(feature.properties.NAME_2,{
-                permanent:true,
-                direction:'center',
+              layer.bindTooltip(feature.properties.NAME_2, {
+                permanent: true,
+                //direction: 'center',
                 className: 'district-label'
               });
-              }
-
+            }
           }).addTo(map);
+
+          // switch styles when base map changes
+          map.on('baselayerchange', function(e) {
+            if (e.name === "Satellite") {
+              districtLayer.setStyle(styleSatellite);
+            } else if (e.name === "OpenStreetMap") { // switched directly without reload
+              districtLayer.setStyle(styleOSM);
+            }
+          });
         });
 
 
-        // Add layer control
-        var baseMaps = {
-          "Satellite": esriSat,
-          "OpenStreetMap": osm
-        };
+      // Add layer control
+      var baseMaps = {
+        "OpenStreetMap": osm,
+        "Satellite": esriSat
+      };
 
-        var overlayMaps = {
-          "Roads": roadsLayer //here can be enhance if have other roads or want different road different layer
-        };
+      var overlayMaps = {
+        "Roads": roadsLayer
+      };
 
-        L.control.layers(baseMaps, overlayMaps).addTo(map);
-      });
+      L.control.layers(baseMaps, overlayMaps).addTo(map);
+    });
 
-    // 4. Add "You are here" functionality
-   var locateControl = L.control({position: 'topleft'});
-    locateControl.onAdd = function(map) {
-      var div = L.DomUtil.create('div', 'locate-button');
-      div.innerHTML = '📍';
-      div.onclick = function(){
-        map.locate({setView: true, maxZoom: 70});
-      }
-      return div;
+  // 4. Add "You are here" functionality
+  var locateControl = L.control({position: 'topleft'});
+  locateControl.onAdd = function(map) {
+    var div = L.DomUtil.create('div', 'locate-button');
+    div.innerHTML = '📍';
+    div.onclick = function(){
+      map.locate({setView: true, maxZoom: 70});
+    }
+    return div;
+  };
+  locateControl.addTo(map);
+
+  // 5. Add "Recenter map" functionality
+  var recenter = L.control({position: 'topleft'});
+  recenter.onAdd = function(map){
+    var div = L.DomUtil.create('div', "locate-button");
+    div.innerHTML = ' E ';
+    div.title = "Recenter map";
+
+    div.onclick = function(){
+      map.setView([5.0, 117.5], 8.3);
     };
-    locateControl.addTo(map);
+    return div;
+  };
+  recenter.addTo(map);
 
-    // When location is found
-    map.on('locationfound', function(e) {
-      if (userMarker) {
-        map.removeLayer(userMarker);
-      }
-      userMarker = L.marker(e.latlng, {
-        icon: L.divIcon({
-          className: '',
-          html: '<div class="pulse"></div>',
-          iconSize: [30, 30]
-        })
-      }).addTo(map).bindPopup("You are here!").openPopup();
-    });
 
-    // Error handling
-    map.on('locationerror', function(e) {
-      alert("Location error: " + e.message);
-    });
-  </script>
+  map.on('locationfound', function(e) {
+    if (userMarker) {
+      map.removeLayer(userMarker);
+    }
+    userMarker = L.marker(e.latlng, {
+      icon: L.divIcon({
+        className: '',
+        html: '<div class="pulse"></div>',
+        iconSize: [30, 30]
+      })
+    }).addTo(map).bindPopup("You are here!").openPopup();
+  });
+
+  map.on('locationerror', function(e) {
+    alert("Location error: " + e.message);
+  });
+
+  
+
+</script>
+
 </body>
 </html>
