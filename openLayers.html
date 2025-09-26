@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenLayers Basemap Switcher</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
+    <style>
+        /* Define the size of the map */
+        #map {
+            width: 100%;
+            height: 1000px;
+        }
+         #basemap-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000; /* Ensure it is above the map tiles */
+            padding: 5px;
+         }
+    </style>
+</head>
+
+<body>
+    <div id="map" class="map"></div>
+    
+    <select id="basemap-selector" onchange="switchBasemap(this.value)">
+        <option value="Regular Map">Regular (Streets)</option>
+        <option value="Satellite Imagery">Satellite</option>
+    </select>
+
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+
+    <script>
+        /* * IMPORTANT: When using the pre-built 'ol.js' file (as you are with the CDN), 
+         * you do not use 'import' statements. All OpenLayers objects are available 
+         * via the global 'ol' namespace (e.g., ol.Map, ol.layer.Tile, ol.source.OSM, etc.). 
+         */
+
+        // 1. Define Layer Sources and Layers
+        
+        // --- 1.1 Regular/Street Basemap (OSM) ---
+        const osmLayer = new ol.layer.Tile({ // Correctly access TileLayer via ol namespace
+            source: new ol.source.OSM(),     // Correctly access OSM via ol namespace
+            visible: true,
+            properties: {
+                title: 'Regular Map',
+                type: 'base',
+            }
+        });
+
+        // --- 1.2 Satellite Basemap (ArcGIS World Imagery) ---
+        const satelliteLayer = new ol.layer.Tile({ 
+            // Satellite maps need an XYZ source pointing to the imagery tiles
+            source: new ol.source.XYZ({ // Correctly access XYZ via ol namespace
+                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                maxZoom: 19 // Imagery tiles often have a max zoom limit
+            }),
+            visible: false, // Hidden by default
+            properties: {
+                // Must match the option value in the HTML select dropdown
+                title: 'Satellite Imagery', 
+                type: 'base',
+            }
+        });
+
+        // --- 1.3 Road Data Layer (Vector Layer) ---
+        const roadSource = new ol.source.Vector({
+            url: 'sabah_main_roads.geojson', // Assuming this file is available in the same directory
+            format: new ol.format.GeoJSON() 
+        });
+
+        const roadStyle = new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'blue', 
+                width: 2
+            })
+        });
+
+        const roadLayer = new ol.layer.Vector({
+            source: roadSource,
+            style: roadStyle,
+            properties: {
+                title: 'Road Data',
+                type: 'data' // Important: Mark this as a data layer, not a base layer
+            }
+        });
+
+
+        // 2. Create the Map Object
+        
+        // The map must be defined BEFORE the switchBasemap function is called 
+        // (which happens when the page loads if you use onchange="...").
+        const map = new ol.Map({
+            target: 'map', // links the map to the <div id="map">
+            // Add all layers (basemaps and data layers) to the map
+            layers: [
+                osmLayer,
+                satelliteLayer,
+                roadLayer
+            ], 
+            view: new ol.View({
+                center: ol.proj.fromLonLat([117.5, 5.0]), // Sabah, Malaysia
+                zoom: 8
+            })
+        });
+
+        // 3. Implement the Basemap Switching Function
+        
+        // The function name must match the one used in the HTML: onchange="switchBasemap(...)"
+        function switchBasemap(newBaseMapTitle) { // The title comes from the HTML select value
+            const layers = map.getLayers().getArray();
+            
+            layers.forEach(layer => {
+                const layerProperties = layer.getProperties();
+
+                // Only process layers explicitly marked as a 'base' layer
+                if (layerProperties.type === 'base') {
+                    
+                    // Check if the layer's title matches the selected dropdown value
+                    if (layerProperties.title === newBaseMapTitle) {
+                        layer.setVisible(true); // Make the selected basemap visible
+                    } else {
+                        layer.setVisible(false); // Hide all other basemaps
+                    }
+                }
+            });
+        }
+        
+    </script>
+</body>
+</html>
